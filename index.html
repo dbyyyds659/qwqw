@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>寻宝游戏</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+
+        #output {
+            margin-top: 20px;
+            border: 1px solid #ccc;
+            padding: 10px;
+            height: 200px;
+            overflow-y: auto;
+        }
+
+        img {
+            max-width: 100%;
+            height: auto;
+            display: none;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>欢迎来到寻宝游戏</h1>
+    <div id="loginContainer">
+        <input type="text" id="userId" placeholder="用户ID">
+        <button id="loginButton">登录</button>
+    </div>
+    <button id="startButton" style="display: none;">开始游戏</button>
+    <button id="resetButton" style="display: none;">重置游戏</button>
+    <div id="output"></div>
+    <img id="storyImage" src="" alt="Story Image">
+    <audio id="backgroundMusic" loop>
+        <source src="xyy.mp3" type="audio/mpeg">
+        您的浏览器不支持音频元素。
+    </audio>
+
+    <script>
+        // 游戏背景音乐
+        const backgroundMusic = document.getElementById('backgroundMusic');
+        const startButton = document.getElementById('startButton');
+        const resetButton = document.getElementById('resetButton');
+        const outputDiv = document.getElementById('output');
+        const imgElement = document.getElementById('storyImage');
+        const loginContainer = document.getElementById('loginContainer');
+        const loginButton = document.getElementById('loginButton');
+        const userIdInput = document.getElementById('userId');
+
+        // 用户进度存储
+        const usersProgress = localStorage.getItem('usersProgress') ? JSON.parse(localStorage.getItem('usersProgress')) : {};
+
+        // 背景音乐播放
+        function playMusic() {
+            backgroundMusic.volume = 0.5;
+            backgroundMusic.play().catch(() => {
+                console.warn('自动播放音乐失败');
+            });
+        }
+
+        // 更新输出和图片
+        function updateOutput(message, image = '', descriptionFile = '') {
+            outputDiv.innerHTML += `<p>${message}</p>`;
+            if (image) {
+                imgElement.src = image;
+                imgElement.style.display = 'block';
+            }
+
+            if (descriptionFile) {
+                fetch(descriptionFile)
+                    .then(res => res.text())
+                    .then(desc => {
+                        outputDiv.innerHTML += `<p>${desc}</p>`;
+                    });
+            }
+        }
+
+        // 保存游戏进度
+        function saveGameProgress(userId, progress) {
+            usersProgress[userId] = progress;
+            localStorage.setItem('usersProgress', JSON.stringify(usersProgress));
+        }
+
+        // 获取游戏进度
+        function getGameProgress(userId) {
+            return usersProgress[userId] || null;
+        }
+
+        // 登录并开始游戏
+        function loginAndStartGame(userId) {
+            if (userId) {
+                loginContainer.style.display = 'none';
+                startButton.style.display = 'block';
+                resetButton.style.display = 'block';
+                return true;
+            }
+            return false;
+        }
+
+        // 重置游戏状态
+        function resetGame() {
+            localStorage.clear();
+            outputDiv.innerHTML = '';
+            imgElement.style.display = 'none';
+            backgroundMusic.pause();
+            backgroundMusic.currentTime = 0;
+        }
+
+        // 事件监听器
+        loginButton.addEventListener('click', function () {
+            const userId = userIdInput.value;
+            if (loginAndStartGame(userId)) {
+                startButton.addEventListener('click', function () {
+                    const progress = getGameProgress(userId);
+                    findTreasure(progress);
+                    playMusic();
+                });
+            }
+        });
+
+        resetButton.addEventListener('click', resetGame);
+
+        // 游戏逻辑
+        async function findTreasure(progress) {
+            try {
+                outputDiv.innerHTML = "游戏开始...";
+                imgElement.style.display = 'none';
+
+                let clue = progress ? progress.clue : await TreasureMap.getInitialClue();
+                updateOutput(clue, '图书馆.jpg');
+
+                let location = progress ? progress.location : await TreasureMap.decodeAncientScript(clue);
+                updateOutput(location, '图书馆.jpg');
+
+                let templeResult = progress ? progress.templeResult : await TreasureMap.searchTemple(location);
+                updateOutput(templeResult.message, templeResult.image);
+
+                let treasureResult = progress ? progress.treasureResult : await TreasureMap.openTreasureBox();
+                updateOutput(treasureResult.message, treasureResult.image);
+
+                saveGameProgress(userIdInput.value, {
+                    clue,
+                    location,
+                    templeResult,
+                    treasureResult
+                });
+            } catch (error) {
+                updateOutput(`任务失败: ${error.message}`, error.image || 'failure.jpg');
+            }
+        }
+
+        // TreasureMap类定义
+        class TreasureMap {
+            static async getInitialClue() {
+                return "欢迎来到古老的图书馆，这里充满了尘封的秘密和古老的书籍。";
+            }
+
+            static async decodeAncientScript(clue) {
+                return "你来到了一座被遗忘的神庙，传说中，这里隐藏着通往宝藏的路径。";
+            }
+
+            static async searchTemple(location) {
+                return new Promise((resolve, reject) => {
+                    setTimeout(() => {
+                        const random = Math.random();
+                        if (random < 0.5) {
+                            reject({ message: "糟糕!遇到了神庙守卫!", image: 'mogui.jpg' });
+                        } else {
+                            resolve({ message: "你击败了守卫，发现了一个神秘的宝箱!", image: '击败守卫.jpg' });
+                        }
+                    }, 1500);
+                });
+            }
+
+            static async openTreasureBox() {
+                return new Promise((resolve, reject) => {
+                    setTimeout(() => {
+                        const random = Math.random();
+                        if (random < 0.7) {
+                            resolve({ message: "恭喜!你找到了传说中的宝藏!", image: '宝箱.jpg' });
+                        } else {
+                            reject({ message: "宝箱竟然是陷阱!你失败了。", image: '陷阱.jpg' });
+                        }
+                    }, 1000);
+                });
+            }
+        }
+    </script>
+</body>
+
+</html>
